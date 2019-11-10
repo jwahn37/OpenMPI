@@ -68,6 +68,7 @@ int main ( int argc, char *argv[ ] )
 	int chuk_size;
 	MPI_Status *stats;
 	MPI_Request *reqs;
+	double start, finish;
 	//MPI 초기화	
 	MPI_Init ( &argc, &argv ) ;
     MPI_Comm_rank ( MPI_COMM_WORLD, &rank ) ; 
@@ -84,10 +85,15 @@ int main ( int argc, char *argv[ ] )
 	//slaves
 	else
 	{
+		start = MPI_Wtime();
 		err=process_slaves(rank, numtasks);
 		if(err==-1)	printf("slave %d node error \n", rank);
+		finish=MPI_Wtime();
+		printf("%e seconds from %d\n", rank, finish-start);
 	}
+
 	
+
     MPI_Finalize ( ) ;
 
 	return 0;
@@ -114,7 +120,7 @@ int process_master(int rank, int numtasks)
 	reqs = (MPI_Request*)malloc(sizeof(MPI_Request)*numtasks);
 
 	scanf("%s", rfile_name);
-	printf("%s\n", rfile_name);
+//	printf("%s\n", rfile_name);
 	//strcpy(rfile_name, "./ppm_example/Iggy.1024.ppm");
 	//strcpy(rfile_name, "./ppm_example/small/boxes_1.ppm");
 	//추후 쓸 파일 이름 생성 (.ppm -> .pgm)
@@ -138,7 +144,7 @@ int process_master(int rank, int numtasks)
 	img_pgm = (PGMImage*)malloc(sizeof(PGMImage));
 	memcpy(img_pgm, img_ppm, sizeof(PGMImage));	//image 메타데이터 읽어오기
 	img_pgm->N = '5';
-	printf("check img new: %d %d %d %c %c\n", img_pgm->height, img_pgm->width, img_pgm->max, img_pgm->M, img_pgm->N);
+	//printf("check img new: %d %d %d %c %c\n", img_pgm->height, img_pgm->width, img_pgm->max, img_pgm->M, img_pgm->N);
 	
 	/*
 	img_pgm->pixels = (PGMPixel**)calloc(img_pgm->height+2, sizeof(PGMPixel*));
@@ -490,10 +496,8 @@ int PPM_file_write(char file_name[NAME_LEN], PPMImage *img)
 		for(j=1; j<=img->width; j++){
 			//fprintf(fp, "%c%c%c", img->pixels[i][j].red, img->pixels[i][j].green, img->pixels[i][j].blue);
 			fprintf(fp, "%c%c%c", img->pixels[indexOf(i,j,img->width+2)].red, img->pixels[indexOf(i,j,img->width+2)].green, img->pixels[indexOf(i,j,img->width+2)].blue);
-			if(i==img->height/2 && j==img->height/2)
-			{
-				printf("wrfile %d %d %d\n", img->pixels[indexOf(i,j,img->width+2)].red, img->pixels[indexOf(i,j,img->width+2)].green, img->pixels[indexOf(i,j,img->width+2)].blue);
-			}
+			
+			
 		}
 	}
 	

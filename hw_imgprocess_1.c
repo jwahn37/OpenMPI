@@ -1,8 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
+#include <unistd.h>
 
 #define NAME_LEN 40
+
+
 /*
 Image Processing using PPM format file
 https://en.wikipedia.org/wiki/Netpbm_format
@@ -52,7 +56,7 @@ int main()
 	int i,j;
 	int w,h;
 	int err=0;
-	
+	double start, finish;
 	//파일을 읽어온다.
 	scanf("%s", rfile_name);
 	memcpy(wfile_name, rfile_name, sizeof(char)*NAME_LEN);
@@ -64,6 +68,10 @@ int main()
 	err=PPM_file_read(rfile_name, img_ppm);
 	if(err==-1)	return 0;
 
+	struct timeval t;
+	gettimeofday(&t, NULL);
+	start = t.tv_sec + t.tv_usec / 1000000.0;
+	//GET_TIME(start);
 	//1. flip an image horizontally
 	for(i=0; i<img_ppm->height; i++)
 	{
@@ -103,7 +111,7 @@ int main()
 	//픽셀을 주변부와 평균화한다. (Average Fileter)
 	//버퍼를 할당해서 카피해놓는다. (원본 훼손 방지)
 	PGMPixel **tp_pgm = (PGMPixel**)malloc(sizeof(PGMPixel*)*img_pgm->height);
-	for(int i=0; i<img_pgm->height; i++)
+	for(i=0; i<img_pgm->height; i++)
 	{
 		tp_pgm[i] = (PGMPixel*)malloc(sizeof(PGMPixel)*img_pgm->width);
 	}
@@ -117,9 +125,9 @@ int main()
 		{
 			//여기서부터 주변부 검색하면서 평균화 한다.
 			int sum_surr=0;
-			for(int i=-1; i<=1; i++)
+			for(i=-1; i<=1; i++)
 			{
-				for(int j=-1; j<=1; j++)
+				for(j=-1; j<=1; j++)
 				{
 					if(h+i>=0 && h+i<img_pgm->height && w+j>=0 && w+j<img_pgm->width)	
 					{
@@ -132,7 +140,11 @@ int main()
 			img_pgm->pixels[h][w].grey = sum_surr/9;
 		}
 	}
-	
+	gettimeofday(&t, NULL);
+	finish = t.tv_sec + t.tv_usec / 1000000.0;
+	//GET_TIME(start);
+	//GET_TIME(finish);
+	printf("The code to be timed took %e seconds\n", finish-start);
 	//파일을 쓴다.
 	//err=PPM_file_write(wfile_name, img);
 	err=PGM_file_write(wfile_name, img_pgm);
