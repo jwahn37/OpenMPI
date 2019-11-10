@@ -6,7 +6,7 @@
 #define NAME_LEN 40
 #define H 0
 #define W 1
-#define indexOf(i, j, width) (j+width*i)
+#define indexOf(i, j, width) ((j)+(width)*(i))
 /*
 Image Processing using PPM format file
 https://en.wikipedia.org/wiki/Netpbm_format
@@ -14,6 +14,10 @@ https://oneday0012.tistory.com/19
 
 PGM, PPM
 https://www.geeksforgeeks.org/c-program-to-write-an-image-in-pgm-format/
+
+asynchrnous Send/Receive
+https://www.codingame.com/playgrounds/349/introduction-to-mpi/non-blocking-communications---exercise
+
 */
 
 typedef struct {
@@ -112,7 +116,7 @@ int process_master(int rank, int numtasks)
 	printf("I m a master\n");
 	//scanf("%s", rfile_name);
 	strcpy(rfile_name, "./ppm_example/Iggy.1024.ppm");
-	//strcpy(rfile_name, "./ppm_example/small/sign_1.ppm");
+	//strcpy(rfile_name, "./ppm_example/small/boxes_1.ppm");
 	//추후 쓸 파일 이름 생성 (.ppm -> .pgm)
 	memcpy(wfile_name, rfile_name, sizeof(char)*NAME_LEN);
 	wfile_name[strlen(wfile_name)-2] = 'g';	//pgm
@@ -123,6 +127,12 @@ int process_master(int rank, int numtasks)
 	img_ppm = (PPMImage*) malloc (sizeof(PPMImage));
 	err=PPM_file_read(rfile_name, img_ppm);
 	if(err==-1)	return -1;
+
+
+	i=img_ppm->height/2 ;
+	j=img_ppm->height/2;
+			
+			
 
 	//pgm 할당
 	img_pgm = (PGMImage*)malloc(sizeof(PGMImage));
@@ -145,9 +155,9 @@ int process_master(int rank, int numtasks)
 	MPI_Datatype PGM_pixel_columns_type;
 	//MPI_Datatype PGM_pixel_3colums_type;
 
-	MPI_Type_contiguous((img_ppm->width+2)*3, MPI_CHAR, &PPM_pixel_columns_type);
+	MPI_Type_contiguous((img_ppm->width+2)*sizeof(PPMPixel), MPI_CHAR, &PPM_pixel_columns_type);
 	MPI_Type_commit(&PPM_pixel_columns_type);
-	MPI_Type_contiguous(img_ppm->width+2, MPI_CHAR, &PGM_pixel_columns_type);
+	MPI_Type_contiguous((img_ppm->width+2)*sizeof(PGMPixel), MPI_CHAR, &PGM_pixel_columns_type);
 	MPI_Type_commit(&PGM_pixel_columns_type);
 	//MPI_Type_contiguous(img_ppm->width*3, MPI_CHAR, &PGM_pixel_3colums_type);
 	//MPI_Type_commit(&PGM_pixel_3colums_type);
@@ -183,47 +193,59 @@ int process_master(int rank, int numtasks)
 		//rank : 0 , 1, 2, ..
 		//최초줄은 0이기 떄문.
 		//MPI_Isend(img_ppm->pixels[1+i*chunk_size],chunk_size, PPM_pixel_type, i, 0, MPI_COMM_WORLD, &req[i]);
-		if(i==1)
-			printf("master idx: %d, chunk: %d\n", 1+(i-1)*chunk_size, chunk_size);
 		//MPI_Isend(&(img_ppm->pixels[(1+(i-1)*chunk_size)*(img_ppm->width+2)]),chunk_size, PPM_pixel_columns_type, i, 0, MPI_COMM_WORLD, &reqs[i]);
 		MPI_Isend(&(img_ppm->pixels[indexOf(1+(i-1)*chunk_size, 0, img_ppm->width+2)]),chunk_size, PPM_pixel_columns_type, i, 0, MPI_COMM_WORLD, &reqs[i]);
+				
+		//MPI_Wait(&reqs[i], &stats[i]);
+
 	}
 	//MPI_Recv(&revsum, 1, MPI_INT, rank-_exp2(i), MPI_ANY_TAG, MPI_COMM_WORLD, &st);
-	printf("master check 5\n");
 
 	for(i=1; i<numtasks; i++)
 	{
 		MPI_Wait(&reqs[i], &stats[i]);
 		///MPI_Irecv(img_pgm->pixels[1+(i-1)*chunk_size], chunk_size, PGM_pixel_columns_type, i, MPI_ANY_TAG, MPI_COMM_WORLD, &reqs[i]);
 		MPI_Irecv(&(img_pgm->pixels[indexOf(1+(i-1)*chunk_size, 0, img_pgm->width+2)]), chunk_size, PGM_pixel_columns_type, i, MPI_ANY_TAG, MPI_COMM_WORLD, &reqs[i]);
+		//MPI_Wait(&reqs[i], &stats[i]);
 	}
+	
+	printf("master check 6\n");
 
 	//boundary 
-/*
-	//3. Smooth the image by calculating the mean of each pixel's value and ite eight neighbours (some algorithms consider only the values from the diagonal neighbours or the horizontal and vertical neighbours)
-	for(i=1; i<numtasks; i+++)
-	{	
-		MPI_Wait(&req[i], &stats[i]);	//본인도 기다리고
-		if(i-1>=0)			MPI_Wait(&req[i-1], &stats[i-1]);	//한번 이전과,
-		if(i+1<numtasks)	MPI_Wait(&req[i+1], &stats[i+1]);	//한번 이후도 기다려야함.
 
-		MPI_Isend(img_pgm->pixels[(i-1)*chunk_size],chunk_size+2, PGM_pixel_columns_type, i, 0, MPI_COMM_WORLD, &req[i]);
+	//3. Smooth the image by calculating the mean of each pixel's value and ite eight neighbours (some algorithms consider only the values from the diagonal neighbours or the horizontal and vertical neighbours)
+	MPI_Waitall(numtasks-1,&reqs[1],&stats[1]);
+
+	for(i=1; i<numtasks; i++)
+	{	
+		//MPI_Wait(&reqs[i], &stats[i]);	//본인도 기다리고
+		//if(i-1>=0)			MPI_Wait(&reqs[i-1], &stats[i-1]);	//한번 이전과,
+		//if(i+1<numtasks)	MPI_Wait(&reqs[i+1], &stats[i+1]);	//한번 이후도 기다려야함.
+
+		//MPI_Isend(img_pgm->pixels[(i-1)*chunk_size],chunk_size+2, PGM_pixel_columns_type, i, 0, MPI_COMM_WORLD, &req[i]);
+		if(i==1)
+			printf("master send: core(%d), index(%d), size(%d)\n", i, indexOf((i-1)*chunk_size,0,img_pgm->width+2), chunk_size+2);
+		MPI_Isend(&img_pgm->pixels[indexOf((i-1)*chunk_size,0,img_pgm->width+2)],chunk_size+2, PGM_pixel_columns_type, i, 0, MPI_COMM_WORLD, &reqs[i]);
 
 	}
 
 	for(i=1; i<numtasks; i++)
 	{
-		MPI_Wait(&req[i], &stats[i]);
-		MPI_Irecv(img_pgm->pixels[1+(i-1)*chunk_size], chunk_size, PGM_pixel_columns_type, i, MPI_ANY_TAG, MPI_COMM_WORLD, &req[i]);
+		MPI_Wait(&reqs[i], &stats[i]);
+	//MPI_Irecv(img_pgm->pixels[1+(i-1)*chunk_size], chunk_size, PGM_pixel_columns_type, i, MPI_ANY_TAG, MPI_COMM_WORLD, &req[i]);
+		MPI_Irecv(&img_pgm->pixels[indexOf((i-1)*chunk_size,0,img_pgm->width+2)], chunk_size, PGM_pixel_columns_type, i, MPI_ANY_TAG, MPI_COMM_WORLD, &reqs[i]);
 	}
-*/
-printf("master check 6\n");
+	
 
+	printf("master check 6\n");
+	//MPI_Waitall(numtasks,reqs,stats);
+	MPI_Waitall(numtasks-1,&reqs[1],&stats[1]);
+	
 	//파일을 쓴다.
 	//err=PPM_file_write(wfile_name, img);
 	err=PGM_file_write(wfile_name, img_pgm);
 	if(err==-1)	return -1;
-printf("master check 7\n");
+	printf("master check 7\n");
 
 	PPM_free(img_ppm);
 	//PPM_free(img_new);
@@ -231,7 +253,8 @@ printf("master check 7\n");
 
 	free(stats);
 	free(reqs);
-printf("master check 8\n");
+
+	printf("master check 8\n");
 
 	return 0;
 }
@@ -247,7 +270,7 @@ int process_slaves(int rank, int numtasks)
 	PPMPixel* ppm_pixels;
 	PGMPixel* pgm_pixels;
 	
-	int i, j;
+	int i, j, h, w;
 	int chunk_size;
 
 	//0. MPI Derived data type 생성
@@ -258,17 +281,20 @@ int process_slaves(int rank, int numtasks)
 
 	
 	//호스트로부터 HEIGHT, WIDTH정보 받아온다.
-	MPI_Recv(hw, 2, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &st);
+	//MPI_Recv(hw, 2, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &st);
+	MPI_Irecv(hw, 2, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &req);
+	MPI_Wait(&req, &st);
+
 	height = hw[H];
 	width = hw[W];
 
 	//0. MPI Derived data type 생성
 	//각 타입은 PPM/PGM의 column을 나타내는 데이터 타입임.
-	MPI_Type_contiguous((width+2)*3, MPI_CHAR, &PPM_pixel_columns_type);
+	MPI_Type_contiguous((width+2)*sizeof(PPMPixel), MPI_CHAR, &PPM_pixel_columns_type);
 	MPI_Type_commit(&PPM_pixel_columns_type);
-	MPI_Type_contiguous(width+2, MPI_CHAR, &PGM_pixel_columns_type);
+	MPI_Type_contiguous((width+2)*sizeof(PGMPixel), MPI_CHAR, &PGM_pixel_columns_type);
 	MPI_Type_commit(&PGM_pixel_columns_type);
-
+	
 	//연산할 ppm, pgm 할당 (1024/8=128)
 	chunk_size = height / (numtasks-1);
 	if(rank==1)
@@ -290,20 +316,26 @@ int process_slaves(int rank, int numtasks)
 	}
 */	
 	//반드시 1차원으로 할당해야 데이터를 연속적으로 받아올 수 있다. 
-	ppm_pixels = (PPMPixel*)malloc(sizeof(PPMPixel)*chunk_size*(width+2));
-	pgm_pixels = (PGMPixel*)malloc(sizeof(PGMPixel)*chunk_size*(width+2));
+	//chunk_size+2를 구하는것은, 경계면을 받아오기 위함
+	ppm_pixels = (PPMPixel*)malloc(sizeof(PPMPixel)*(chunk_size+2)*(width+2));
+	pgm_pixels = (PGMPixel*)malloc(sizeof(PGMPixel)*(chunk_size+2)*(width+2));
 
-	memset(ppm_pixels, 0x00, sizeof(PPMPixel)*chunk_size*(width+2));
-	memset(ppm_pixels, 0x00, sizeof(PGMPixel)*chunk_size*(width+2));
+	memset(ppm_pixels, 0x00, sizeof(PPMPixel)*(chunk_size+2)*(width+2));
+	memset(pgm_pixels, 0x00, sizeof(PGMPixel)*(chunk_size+2)*(width+2));
 
+	if(rank==1)
+	printf("slave 1\n");
 	//1. 호스트로부터 연산할 ppm 받아온다.
 
 	//MPI_Recv(ppm_pixels, chunk_size, PPM_pixel_columns_type, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &st);
 	MPI_Irecv(ppm_pixels, chunk_size, PPM_pixel_columns_type, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &req);
+	MPI_Wait(&req, &st);
+
 	//MPI_Irecv(img_pgm->pixels[1+(i-1)*chunk_size], chunk_size, PGM_pixel_columns_type, i, MPI_ANY_TAG, MPI_COMM_WORLD, &reqs[i]);
 
 	
 	//1.1. flip an image horizontally
+	
 	for(i=0; i<chunk_size; i++)
 	{
 		for(j=1; j<=width/2; j++)
@@ -318,6 +350,9 @@ int process_slaves(int rank, int numtasks)
 		}
 	}	
 	
+	if(rank==1)
+	printf("slave 2\n");
+	
 	//1.2. reduce the image to grayscale by taking the advantage of the red, green, and blue value for each pixel.
 	for(i=0; i<chunk_size; i++)
 	{
@@ -328,10 +363,59 @@ int process_slaves(int rank, int numtasks)
 		}
 	}	
 	
+	if(rank==1)
+	printf("slave 3\n");
+	
 	//호스트에게 pgm을 전송한다.
-   // MPI_Send(pgm_pixels, chunk_size, PGM_pixel_columns_type, 0, 0, MPI_COMM_WORLD);
+	MPI_Isend(pgm_pixels,chunk_size, PGM_pixel_columns_type, 0, 0, MPI_COMM_WORLD, &req);
+	MPI_Wait(&req, &st);
 
+   // MPI_Send(pgm_pixels, chunk_size, PGM_pixel_columns_type, 0, 0, MPI_COMM_WORLD);
+	if(rank==1)
+	printf("slave 3.5\n");
+	
+	
 	//2. 호스트로부터 Average filetering을 수행하기 위한 데이터를 받아온다..
+	MPI_Irecv(pgm_pixels, chunk_size+2, PGM_pixel_columns_type, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &req);
+	MPI_Wait(&req, &st);
+
+	//3. Smooth the image by calculating the mean of each pixel's value and ite eight neighbours (some algorithms consider only the values from the diagonal neighbours or the horizontal and vertical neighbours)
+	if(rank==1)
+	printf("slave 4\n");
+	
+	//버퍼를 할당해서 카피한다.
+	if(rank==1)
+	{
+		printf("slave core(%d), size(%d)\n", rank, sizeof(PGMPixel)*(chunk_size+2)*(width+2));
+		printf("and chunk(%d), width(%d)\n", chunk_size, width);
+	}
+
+	PGMPixel *pgm_smooth = (PGMPixel*)malloc(sizeof(PGMPixel)*(chunk_size+2)*(width+2));
+	//memcpy(tp_pgm, pgm_pixels, izeof(PGMPixel)*(chunk_size+2)*(width+2));
+
+	if(rank==1)
+	printf("slave 5\n");
+	
+	for(h=1; h<=chunk_size; h++)
+	{
+		for(w=1; w<=width; w++)
+		{
+			int sum_surr=0;
+			for(i=-1; i<=1; i++)
+			{
+				for(j=-1; j<=1; j++)
+				{
+					sum_surr+= pgm_pixels[indexOf(h+i,w+j,width+2)].grey;
+				}
+			}
+			pgm_smooth[indexOf(h,w,width+2)].grey = sum_surr/9;
+		}
+	}
+
+	MPI_Isend(&pgm_smooth[indexOf(1,0,width+2)],chunk_size, PGM_pixel_columns_type, 0, 0, MPI_COMM_WORLD, &req);
+
+	MPI_Wait(&req, &st);
+
 
 	return 0;
 
@@ -396,8 +480,15 @@ int PPM_file_read(char file_name[NAME_LEN], PPMImage* img)
 		for(j=1; j<=img->width; j++){
 			//res=fscanf(fp, "%c%c%c", &(img->pixels[i][j].red), &(img->pixels[i][j].green), &(img->pixels[i][j].blue));
 			res=fscanf(fp, "%c%c%c", &(img->pixels[indexOf(i,j,img->width+2)].red), &(img->pixels[indexOf(i,j,img->width+2)].green), &(img->pixels[indexOf(i,j,img->width+2)].blue));
+			
+			
+			//printf("%d,%d\n",i,j);
 		}
 	}
+	i=img->height/2 ;
+	j=img->height/2;
+	
+	
 	
 	fclose(fp);	
 
@@ -426,8 +517,16 @@ int PPM_file_write(char file_name[NAME_LEN], PPMImage *img)
 		for(j=1; j<=img->width; j++){
 			//fprintf(fp, "%c%c%c", img->pixels[i][j].red, img->pixels[i][j].green, img->pixels[i][j].blue);
 			fprintf(fp, "%c%c%c", img->pixels[indexOf(i,j,img->width+2)].red, img->pixels[indexOf(i,j,img->width+2)].green, img->pixels[indexOf(i,j,img->width+2)].blue);
+			if(i==img->height/2 && j==img->height/2)
+			{
+				printf("wrfile %d %d %d\n", img->pixels[indexOf(i,j,img->width+2)].red, img->pixels[indexOf(i,j,img->width+2)].green, img->pixels[indexOf(i,j,img->width+2)].blue);
+			}
 		}
 	}
+	
+
+
+
 	fclose(fp);
 
 	return 0;
@@ -456,7 +555,7 @@ int PGM_file_write(char file_name[NAME_LEN], PGMImage *img)
 			fprintf(fp, "%c", img->pixels[indexOf(i,j,img->width+2)].grey);
 		}
 	}
-	fclose(fp);
+
 
 	return 0;
 }
