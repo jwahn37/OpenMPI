@@ -82,7 +82,7 @@ int main()
 	img_pgm = (PGMImage*)malloc(sizeof(PGMImage));
 	memcpy(img_pgm, img_ppm, sizeof(PGMImage));	//image 메타데이터 읽어오기
 	img_pgm->N = '5';
-	printf("check img new: %d %d %d %c %c\n", img_pgm->height, img_pgm->width, img_pgm->max, img_pgm->M, img_pgm->N);
+	printf("%s: check img new: %d %d %d %c %c\n", rfile_name, img_pgm->height, img_pgm->width, img_pgm->max, img_pgm->M, img_pgm->N);
 	img_pgm->pixels = (PGMPixel**)malloc(sizeof(PGMPixel*)*img_pgm->height);
 	for(i=0; i<img_pgm->height; i++)
 	{
