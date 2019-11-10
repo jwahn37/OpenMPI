@@ -113,9 +113,9 @@ int process_master(int rank, int numtasks)
 	stats = (MPI_Status*)malloc(sizeof(MPI_Status)*numtasks);
 	reqs = (MPI_Request*)malloc(sizeof(MPI_Request)*numtasks);
 
-	printf("I m a master\n");
-	//scanf("%s", rfile_name);
-	strcpy(rfile_name, "./ppm_example/Iggy.1024.ppm");
+	scanf("%s", rfile_name);
+	printf("%s\n", rfile_name);
+	//strcpy(rfile_name, "./ppm_example/Iggy.1024.ppm");
 	//strcpy(rfile_name, "./ppm_example/small/boxes_1.ppm");
 	//추후 쓸 파일 이름 생성 (.ppm -> .pgm)
 	memcpy(wfile_name, rfile_name, sizeof(char)*NAME_LEN);
@@ -209,7 +209,6 @@ int process_master(int rank, int numtasks)
 		//MPI_Wait(&reqs[i], &stats[i]);
 	}
 	
-	printf("master check 6\n");
 
 	//boundary 
 
@@ -223,8 +222,6 @@ int process_master(int rank, int numtasks)
 		//if(i+1<numtasks)	MPI_Wait(&reqs[i+1], &stats[i+1]);	//한번 이후도 기다려야함.
 
 		//MPI_Isend(img_pgm->pixels[(i-1)*chunk_size],chunk_size+2, PGM_pixel_columns_type, i, 0, MPI_COMM_WORLD, &req[i]);
-		if(i==1)
-			printf("master send: core(%d), index(%d), size(%d)\n", i, indexOf((i-1)*chunk_size,0,img_pgm->width+2), chunk_size+2);
 		MPI_Isend(&img_pgm->pixels[indexOf((i-1)*chunk_size,0,img_pgm->width+2)],chunk_size+2, PGM_pixel_columns_type, i, 0, MPI_COMM_WORLD, &reqs[i]);
 
 	}
@@ -237,7 +234,6 @@ int process_master(int rank, int numtasks)
 	}
 	
 
-	printf("master check 6\n");
 	//MPI_Waitall(numtasks,reqs,stats);
 	MPI_Waitall(numtasks-1,&reqs[1],&stats[1]);
 	
@@ -245,7 +241,6 @@ int process_master(int rank, int numtasks)
 	//err=PPM_file_write(wfile_name, img);
 	err=PGM_file_write(wfile_name, img_pgm);
 	if(err==-1)	return -1;
-	printf("master check 7\n");
 
 	PPM_free(img_ppm);
 	//PPM_free(img_new);
@@ -254,7 +249,6 @@ int process_master(int rank, int numtasks)
 	free(stats);
 	free(reqs);
 
-	printf("master check 8\n");
 
 	return 0;
 }
@@ -297,10 +291,7 @@ int process_slaves(int rank, int numtasks)
 	
 	//연산할 ppm, pgm 할당 (1024/8=128)
 	chunk_size = height / (numtasks-1);
-	if(rank==1)
-	{
-		printf("slave w, h, chunk: %d %d %d\n", width, height, chunk_size);
-	}
+	
 
 	//2차원배열과 2차원포인터는 메모리할당이 전혀 다르다!!!!! 
 	//ppm_pixels = (PPMPixel**)malloc(sizeof(PPMPixel*)*(chunk_size));
@@ -323,8 +314,6 @@ int process_slaves(int rank, int numtasks)
 	memset(ppm_pixels, 0x00, sizeof(PPMPixel)*(chunk_size+2)*(width+2));
 	memset(pgm_pixels, 0x00, sizeof(PGMPixel)*(chunk_size+2)*(width+2));
 
-	if(rank==1)
-	printf("slave 1\n");
 	//1. 호스트로부터 연산할 ppm 받아온다.
 
 	//MPI_Recv(ppm_pixels, chunk_size, PPM_pixel_columns_type, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &st);
@@ -350,9 +339,6 @@ int process_slaves(int rank, int numtasks)
 		}
 	}	
 	
-	if(rank==1)
-	printf("slave 2\n");
-	
 	//1.2. reduce the image to grayscale by taking the advantage of the red, green, and blue value for each pixel.
 	for(i=0; i<chunk_size; i++)
 	{
@@ -363,16 +349,11 @@ int process_slaves(int rank, int numtasks)
 		}
 	}	
 	
-	if(rank==1)
-	printf("slave 3\n");
-	
 	//호스트에게 pgm을 전송한다.
 	MPI_Isend(pgm_pixels,chunk_size, PGM_pixel_columns_type, 0, 0, MPI_COMM_WORLD, &req);
 	MPI_Wait(&req, &st);
 
    // MPI_Send(pgm_pixels, chunk_size, PGM_pixel_columns_type, 0, 0, MPI_COMM_WORLD);
-	if(rank==1)
-	printf("slave 3.5\n");
 	
 	
 	//2. 호스트로부터 Average filetering을 수행하기 위한 데이터를 받아온다..
@@ -380,21 +361,11 @@ int process_slaves(int rank, int numtasks)
 	MPI_Wait(&req, &st);
 
 	//3. Smooth the image by calculating the mean of each pixel's value and ite eight neighbours (some algorithms consider only the values from the diagonal neighbours or the horizontal and vertical neighbours)
-	if(rank==1)
-	printf("slave 4\n");
 	
-	//버퍼를 할당해서 카피한다.
-	if(rank==1)
-	{
-		printf("slave core(%d), size(%d)\n", rank, sizeof(PGMPixel)*(chunk_size+2)*(width+2));
-		printf("and chunk(%d), width(%d)\n", chunk_size, width);
-	}
-
+	//버퍼를 할당한다.
 	PGMPixel *pgm_smooth = (PGMPixel*)malloc(sizeof(PGMPixel)*(chunk_size+2)*(width+2));
 	//memcpy(tp_pgm, pgm_pixels, izeof(PGMPixel)*(chunk_size+2)*(width+2));
 
-	if(rank==1)
-	printf("slave 5\n");
 	
 	for(h=1; h<=chunk_size; h++)
 	{
@@ -417,6 +388,8 @@ int process_slaves(int rank, int numtasks)
 	MPI_Wait(&req, &st);
 
 
+	free(ppm_pixels);
+	free(pgm_pixels);
 	return 0;
 
 
