@@ -26,7 +26,8 @@ int main ( int argc, char *argv[ ] )
     int psize;
     int *val;
     MPI_Status st;
-  
+    double start, finish;
+
     MPI_Init ( &argc, &argv ) ;
     MPI_Comm_rank ( MPI_COMM_WORLD, &rank ) ; 
     MPI_Comm_size ( MPI_COMM_WORLD, &numtasks ) ;
@@ -40,7 +41,9 @@ int main ( int argc, char *argv[ ] )
     psum=0;
     for(i=0; i<count; i++)
     {
-        val[i] = (rank)*count+i+1;
+        //val[i] = (rank)*count+i+1;
+        val[i] = rand() % 1000000 +1;
+
         psum+=val[i];
     }
     /*
@@ -61,6 +64,8 @@ int main ( int argc, char *argv[ ] )
     */
 
 //    level = _log2(NUM_CORE);
+    start = MPI_Wtime();
+
     level = _log2(numtasks);
 
     for(i=0; i<level; i++)
@@ -80,10 +85,13 @@ int main ( int argc, char *argv[ ] )
       
     }
 
-    printf("rank=%d parital sum: ",rank);    
+    //printf("rank=%d parital sum: ",rank);    
     print_psum(psum,count-1, val);
-    printf("\n");
+    //printf("\n");
    // printf ( "rank=%d partial sum: %d\n", rank, psum) ; 
+    finish = MPI_Wtime();
+    printf("%e seconds from %d\n", rank, finish-start);
+
 
     MPI_Finalize ( ) ;
 }
@@ -110,7 +118,7 @@ void print_psum(long long psum, int count, int *val)
     if(count>=0) 
     {
         print_psum(psum-val[count], count-1, val);
-        printf("%lld ", psum);
+        //printf("%lld ", psum);
     }
 
 }
