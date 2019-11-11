@@ -25,6 +25,7 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////*/
 
 void print_psum(long long psum, int count, int *val);
+char Is_core_power2(int num);
 
 int main ( int argc, char *argv[ ] )
 {
@@ -33,7 +34,6 @@ int main ( int argc, char *argv[ ] )
     int psize;
     int count;
     int i;
-    //int psum_s, psum_r;
     long long psum;
     int *val;
     double start, finish;
@@ -48,6 +48,19 @@ int main ( int argc, char *argv[ ] )
 
     srand(time(NULL)+rank); //make random variable
     
+    if(psize%numtasks!=0)
+    {
+        printf("Error: number should be a multiple of number of cores!\n");
+        MPI_Finalize ( ) ;
+        return 0;
+    }
+    if(!Is_core_power2(numtasks))
+    {
+        printf("Error: number of cores should be power of two!\n");
+        MPI_Finalize ( ) ;
+        return 0;
+    }
+
     psum=0;
     for(i=0; i<count; i++)
     {
@@ -60,23 +73,32 @@ int main ( int argc, char *argv[ ] )
 
     MPI_Scan(&psum, &psum, 1, MPI_LONG_LONG,  MPI_SUM, MPI_COMM_WORLD);
    
-    //printf("rank=%d parital sum: ",rank);    
+    printf("rank=%d parital sum: ",rank);    
     print_psum(psum,count-1, val);
-    //printf("\n");
+    printf("\n");
     
     finish = MPI_Wtime();
-    printf("%e seconds from %d\n", rank, finish-start);
+  //  printf("%e seconds from %d\n", finish-start, rank);
     MPI_Finalize ( ) ;
     
 }
 
 void print_psum(long long psum, int count, int *val)
 {   
-    //psum_r -= val[count];
     if(count>=0) 
     {
         print_psum(psum-val[count], count-1, val);
-      //  printf("%lld ", psum);
+        printf("%lld ", psum);
     }
 
+}
+
+char Is_core_power2(int num)
+{
+    while((num & 1) == 0) 
+        num = num>>1;
+    if(num!=1)
+        return 0; //false
+    else
+        return 1; //true
 }

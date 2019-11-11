@@ -16,6 +16,7 @@ using balanced binary tree
 int _log2(int num);
 int _exp2(int num);
 void print_psum(long long psum, int count, int *val);
+char Is_core_power2(int num);
 
 int main ( int argc, char *argv[ ] )
 {
@@ -41,13 +42,24 @@ int main ( int argc, char *argv[ ] )
     val = (int*)malloc(sizeof(int)*count);
     val_pvnode = (int*)malloc(sizeof(int)*count);
 
+    if(psize%numtasks!=0)
+    {
+        printf("Error: number should be a multiple of number of cores!\n");
+        MPI_Finalize ( ) ;
+        return 0;
+    }
+    if(!Is_core_power2(numtasks))
+    {
+        printf("Error: number of cores should be power of two!\n");
+        MPI_Finalize ( ) ;
+        return 0;
+    }
+
     srand(time(NULL)+rank); //make random variable
     psum=0;
     for(i=0; i<count; i++)
     {
-        //val[i] = (rank)*count+i+1;
         val[i] = rand() % 1000000 +1;
-
         psum+=val[i];
     }
     start = MPI_Wtime();
@@ -75,8 +87,6 @@ int main ( int argc, char *argv[ ] )
         }
     }
     
-    //printf ( "rank=%d partial sum: %d\n", rank, psum) ; 
-
     /*
     Down-Sweep Phase 
     x[n – 1] <- 0
@@ -102,8 +112,6 @@ int main ( int argc, char *argv[ ] )
                 MPI_Send(&psum, 1, MPI_LONG_LONG, rank+_exp2(d), 0, MPI_COMM_WORLD);
                 MPI_Recv(&psum, 1, MPI_LONG_LONG, rank+_exp2(d), MPI_ANY_TAG, MPI_COMM_WORLD, &st);
             }
-            //if( rank+_exp2(d) < numtasks)
-            //    MPI_Send(&psum, 1, MPI_INT, rank+_exp2(d), 0, MPI_COMM_WORLD);
         }
         if( (rank+1) % _exp2(d+1) == 0 )    //이전 버전으로부터 받아와서 더한다.
         {
@@ -135,24 +143,17 @@ int main ( int argc, char *argv[ ] )
 
     if(count>1)
     {
-        ///tag = prev
-        //(buf, count, datatype, source, tag, comm, req)
         MPI_Irecv(val_pvnode, count, MPI_INT, prev, MPI_ANY_TAG, MPI_COMM_WORLD, &reqs[0]);
-        //tag = rank
         MPI_Isend(val, count, MPI_INT, next, 0, MPI_COMM_WORLD, &reqs[1]);
-
         MPI_Waitall(2, reqs, stats);
     }
 
-
-   // printf ( "rank=%d partial sum: %d\n", rank, psum) ; 
-   // printf("rank=%d parital sum: ",rank);    
+    printf("rank=%d parital sum: ",rank);    
     print_psum(psum,count-1, val_pvnode);
-    finish = MPI_Wtime();
-    printf("%e seconds from %d\n", rank, finish-start);
+    printf("\n");
 
-   // print_psum(psum,count-1, val);
-    //printf("\n");
+    finish = MPI_Wtime();
+    //printf("%e seconds from %d\n", rank, finish-start);
 
     MPI_Finalize ( ) ;
 }
@@ -179,7 +180,17 @@ void print_psum(long long psum, int count, int *val)
     if(count>=0) 
     {
         print_psum(psum-val[count], count-1, val);
-       // printf("%lld ", psum);
+        printf("%lld ", psum);
     }
 
+}
+
+char Is_core_power2(int num)
+{
+    while((num & 1) == 0) 
+        num = num>>1;
+    if(num!=1)
+        return 0; //false
+    else
+        return 1; //true
 }
