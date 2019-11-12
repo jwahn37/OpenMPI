@@ -61,7 +61,7 @@ int main()
 	scanf("%s", rfile_name);
 	memcpy(wfile_name, rfile_name, sizeof(char)*NAME_LEN);
 	wfile_name[strlen(wfile_name)-2] = 'g';	//pgm
-	//printf("%s\n", wfile_name);
+	
 	//image 구조체 할당
 	img_ppm = (PPMImage*) malloc (sizeof(PPMImage));
 
@@ -90,7 +90,7 @@ int main()
 	img_pgm = (PGMImage*)malloc(sizeof(PGMImage));
 	memcpy(img_pgm, img_ppm, sizeof(PGMImage));	//image 메타데이터 읽어오기
 	img_pgm->N = '5';
-	printf("%s: check img new: %d %d %d %c %c\n", rfile_name, img_pgm->height, img_pgm->width, img_pgm->max, img_pgm->M, img_pgm->N);
+	//printf("%s: check img new: %d %d %d %c %c\n", rfile_name, img_pgm->height, img_pgm->width, img_pgm->max, img_pgm->M, img_pgm->N);
 	img_pgm->pixels = (PGMPixel**)malloc(sizeof(PGMPixel*)*img_pgm->height);
 	for(i=0; i<img_pgm->height; i++)
 	{
@@ -142,16 +142,12 @@ int main()
 	}
 	gettimeofday(&t, NULL);
 	finish = t.tv_sec + t.tv_usec / 1000000.0;
-	//GET_TIME(start);
-	//GET_TIME(finish);
 	printf("The code to be timed took %e seconds\n", finish-start);
 	//파일을 쓴다.
-	//err=PPM_file_write(wfile_name, img);
 	err=PGM_file_write(wfile_name, img_pgm);
 	if(err==-1)	return 0;
 
 	PPM_free(img_ppm);
-	//PPM_free(img_new);
 	PGM_free(img_pgm);
 	return 0;
 }
@@ -175,20 +171,15 @@ int PPM_file_read(char file_name[NAME_LEN], PPMImage* img)
 		return -1;
 	}
 	
-	//fgets(hashtag, 1000, fp);
-	//printf("%s\n", hashtag);
-
+	
 	int res;
 	res=fscanf(fp, "%d %d\n", &img->width, &img->height);	
-	//printf("res %d\n", res);
 	if(res==0)	//something bad happens
 	{
 		char comment_msg[100];
 		fgets(comment_msg, 100, fp);
-	//	printf("%s\n", comment_msg);
 		fscanf(fp, "%d %d\n", &img->width, &img->height);	
 	}
-	//printf("%d %d\n", img->width, img->height);
 	fscanf(fp, "%d\n", &img->max);	
 
 
@@ -255,7 +246,6 @@ int PGM_file_write(char file_name[NAME_LEN], PGMImage *img)
 
 	for(i=0; i<img->height; i++){
 		for(j=0; j<img->width; j++){
-			//fprintf(fp, "%c%c%c", img->pixels[i][j].red, img->pixels[i][j].green, img->pixels[i][j].blue);
 			fprintf(fp, "%c", img->pixels[i][j].grey);
 		}
 	}
