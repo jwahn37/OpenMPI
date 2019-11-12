@@ -5,7 +5,7 @@ int main()
     int n=8;
     int v=0;
     int num;
-
+//////
     while(n>>=1)
         v++;
     printf("%d %d\n", n, v);
